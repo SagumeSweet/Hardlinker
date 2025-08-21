@@ -30,7 +30,7 @@ class Hardlinker:
         self.logger.debug(f"Attempting to create hard link for {source_file.resolve()}")
         try:
             create_hardlink_func()
-            self.logger.debug(f"Created hard link for {source_file.resolve()}")
+            self.logger.info(f"Created hard link for {source_file.resolve()}")
         except PermissionError:
             time.sleep(3)
             if count < self.retry_count:
