@@ -3,16 +3,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 
-from FileScanner import IProcesser, BaseProcessResult, FolderScanner
-
-from .Logger import BaseHardlinkerLogger
+from FileScanner import IProcesser, BaseProcessResult, FolderScanner, IScannerLogger
 
 
 class Hardlinker:
-    def __init__(self, source: Path | str, target: Path | str, executor: ThreadPoolExecutor, logger: BaseHardlinkerLogger, retry_count: int = 3) -> None:
+    def __init__(self, source: Path | str, target: Path | str, executor: ThreadPoolExecutor, logger: IScannerLogger, retry_count: int = 3) -> None:
         self._source: Path = Path(source)
         self._target: Path = Path(target)
-        self.logger: BaseHardlinkerLogger = logger
+        self.logger: IScannerLogger = logger
         self._executor: ThreadPoolExecutor = executor
         self.retry_count: int = retry_count
 
@@ -20,17 +18,19 @@ class Hardlinker:
         relative_file_path: Path = source_file.relative_to(self._source)
         target_file_path: Path = self._target / relative_file_path
         target_file_path.parent.mkdir(parents=True, exist_ok=True)
-        source_file.hardlink_to(target_file_path)
+        target_file_path.hardlink_to(source_file)
 
     def _create_file_hardlink(self) -> None:
         if not self._target.parent.exists():
             self._target.parent.mkdir(parents=True, exist_ok=True)
-        self._source.hardlink_to(self._target)
+        self._target.hardlink_to(self._source)
 
     def _try_to_create_hardlink(self, source_file: Path, create_hardlink_func: Callable[[], None], count=0) -> None:
         """尝试创建硬链接"""
+        self.logger.debug(f"Attempting to create hard link for {source_file.resolve()}")
         try:
             create_hardlink_func()
+            self.logger.debug(f"Created hard link for {source_file.resolve()}")
         except PermissionError:
             time.sleep(3)
             if count < self.retry_count:
@@ -63,8 +63,10 @@ class Hardlinker:
                     create_dir_hardlink_func(path)
 
                 try_to_create_hardlink_func(path, do)
-                return HardLinkProcessResult([path])
+                process_result = HardLinkProcessResult([path])
+                return process_result
 
+            @property
             def empty_process_result(self) -> BaseProcessResult:
                 """返回一个空的处理结果"""
                 return HardLinkProcessResult([])
